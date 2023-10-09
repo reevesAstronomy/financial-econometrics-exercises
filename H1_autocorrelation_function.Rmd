@@ -51,7 +51,6 @@ acf_mat <- matrix(NA, nrow=1000, ncol=21)
 for(i in 1:1000) {
   X_t = get_X_t(n)
   acf_mat[i,] = as.vector(acf(X_t,lag.max=20,plot=FALSE,type="correlation")$acf) #[2:21]
-  acf_list[[i]] = acf(X_t,lag.max=20,plot=FALSE,type="correlation")$acf
 }
 
 acf_mean = colMeans(acf_mat)
