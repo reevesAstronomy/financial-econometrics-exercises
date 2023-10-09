@@ -3,11 +3,11 @@ title: "Financial econometrics: H1 - Basic Statistical and Time-Series Concepts"
 output: H1_notebook
 ---
 
-Using R, simulate n = 100 observations from the stochastic process in Question 4, which is reproduced below for your convenience: $$X_t = Z_{t−1} +2Z_t +Z_{t+1}$$
-where ($$Z_t$$) ∼ i.i.d. N(0, $$\sigma^2$$) by imposing a Normal/Gaussian distribution on $$Z_t$$.
+Using R, simulate n = 100 observations from the stochastic process in Question 4, which is reproduced below for your convenience: $X_t = Z_{t−1} +2Z_t +Z_{t+1}$
+where ($Z_t$) ∼ i.i.d. N(0, $\sigma^2$) by imposing a Normal/Gaussian distribution on $Z_t$.
 
-a) Calculate the simulated autocorrelation coefficients, $$\hat{\rho}_X (h)$$, for h = 1, · · · , 20 for a
-single run/replication. Briefly comment on the results, and compare and contrast the results obtained in this part with the analytical results obtained in Question 4.
+a) Calculate the simulated autocorrelation coefficients, $\hat{\rho}_X (h)$, for h = 1, · · · , 20 for a
+single run/replication. Briefly comment on the results, and compare and contrast the results obtained in this part with the analytical results obtained in Question 4 [question involved calculating the autocorrelation function for this stochastic process analytically among some other exercises].
 
 ```{r}
 library(tseries)

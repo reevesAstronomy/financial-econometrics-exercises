@@ -3,17 +3,33 @@ Financial econometrics: H1 - Basic Statistical and Time-Series Concepts
 
 Using R, simulate n = 100 observations from the stochastic process in
 Question 4, which is reproduced below for your convenience:
-$$X_t = Z_{t−1} +2Z_t +Z_{t+1}$$ where ($$Z_t$$) ∼ i.i.d. N(0,
-$$\sigma^2$$) by imposing a Normal/Gaussian distribution on $$Z_t$$.
+$X_t = Z_{t−1} +2Z_t +Z_{t+1}$ where ($Z_t$) ∼ i.i.d. N(0, $\sigma^2$)
+by imposing a Normal/Gaussian distribution on $Z_t$.
 
 1)  Calculate the simulated autocorrelation coefficients,
-    $$\hat{\rho}_X (h)$$, for h = 1, · · · , 20 for a single
+    $\hat{\rho}_X (h)$, for h = 1, · · · , 20 for a single
     run/replication. Briefly comment on the results, and compare and
     contrast the results obtained in this part with the analytical
-    results obtained in Question 4.
+    results obtained in Question 4 \[question involved calculating the
+    autocorrelation function for this stochastic process analytically
+    among some other exercises\].
 
 ``` r
 library(tseries)
+```
+
+    ## Registered S3 method overwritten by 'quantmod':
+    ##   method            from
+    ##   as.zoo.data.frame zoo
+
+    ## 
+    ##     'tseries' version: 0.10-54
+    ## 
+    ##     'tseries' is a package for time series analysis and computational finance.
+    ## 
+    ##     See 'library(help="tseries")' for details.
+
+``` r
 set.seed(0)
 lags <- 0:20 # array of lag values
 rho_X <- c(c(1, 2/3, 1/6), rep(0,times=(21-3))) # my theoretical calculation of autocorrelation rho_X
