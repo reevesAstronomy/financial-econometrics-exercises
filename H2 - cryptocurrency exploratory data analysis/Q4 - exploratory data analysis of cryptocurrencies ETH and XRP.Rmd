@@ -1,0 +1,236 @@
+---
+title: "Q4 - exploratory data analysis of cryptocurrencies ETH and XRP"
+output: html_notebook
+---
+
+Question 4.
+The objective of this question is to ask you to perform a series of Exploratory Data Anal-
+ysis (EDA), and to replicate some of the results presented in class using different financial
+time series. Please download the following R packages for this part of the homework:
+
+- car
+- PerformanceAnalytics
+- quantmod
+- tseries
+- xts
+- zoo
+
+As of December 15, 2017, Bitcoin (BTC) has a market cap of USD $297 billion. Over the
+same period, the prices of other major cryptocurrencies, such as Litecoin (LTC), Ethereum
+(ETH), and Ripple (XRP), also have skyrocketed. The total market cap of cryptocurren-
+cies stood at only USD $19 billion at the beginning of 2017, but has increased to more
+than USD $500 billion in the middle of December 2017.
+
+ETH, XRP, and LTC are the other three major cryptocurrencies in terms of market cap
+based on the https://coinmarketcap.com/ on December 16, 2017. By far Bitcoin has
+the largest market cap of USD $81 billion. ETH has the second largest market cap of
+USD $58.8 billion, while XRP has the fourth largest market cap at USD $35.6 billion.
+LTC has the fifth largest market cap standing at USD $16.4 billion.
+
+In this question, you are asked to perform a series of EDA on the daily data of ETH
+and XRP for a sample period ranging from December 18, 2016 to December. 18, 2017
+(for a total of 365 Observations). The data can be found in h2q4.xlsx which has been
+uploaded to the H2 submodule.
+
+---
+
+### (a) Compute log (or continuously compounded) daily returns of ETH and XRP. Hence-
+forth, these returns are referred to as returns. Provide a time plot of the resulting time
+series and briefly comment on any ”stylized facts” of these asset returns.
+```{r}
+library(PerformanceAnalytics)
+library(tseries)
+library('readxl')
+data = read_excel('h2q4.xlsx')
+ETH_timeseries = data[['ETH']]
+returns_ETH = diff(log10(ETH_timeseries))
+plot(data[['Date']][-1], returns_ETH, type='l', ylab = 'ETH log Daily Returns', xlab = 'Date')
+abline(h=0, col='grey')
+```
+In ETH's daily returns we can see notable volatility clustering, as well as what appears to be a small amouunt of autoregression in some of the noise or the volatility of the returns is clustered over small portions of the sample period. The oscillations about a mean of ~zero indicates this is a mean-reverting process.
+
+```{r}
+XRP_timeseries = data[['XRP']]
+returns_XRP = diff(log10(XRP_timeseries))
+plot(data[['Date']][-1], returns_XRP, type='l', ylab = 'XRP log Daily Returns', xlab = 'Date', ylim = c(-0.5,0.5))
+abline(h=0, col='grey')
+```
+In XRP's daily returns we again see volatility clustering, but with larger amplitude spikes at the highest oscillations. The oscillations about a mean of ~zero indicates this is a mean-reverting process. The noise between volatility clusters is also larger than for ETH. A possible underlying autoregressive feature in some of the noise seen for ETH does not appear here.
+
+---
+
+### (c) Repeat the exercise in part (a) for daily absolute and squared returns of ETH and XRP. Provide time plots for the resulting time series and briefly comment on any stylized facts of these asset returns.
+
+```{r}
+par(mfrow = c(2, 2), mar = c(2, 4.1, 2, 2.1))
+plot(data[['Date']][-1], abs(returns_ETH), type='l', ylab = 'ETH Absolute Daily Returns', xlab = 'Date')
+plot(data[['Date']][-1], returns_ETH**2, type='l', ylab = 'ETH Squared Daily Returns', xlab = 'Date')
+
+plot(data[['Date']][-1], abs(returns_XRP), type='l', ylab = 'XRP Absolute Daily Returns', xlab = 'Date')
+plot(data[['Date']][-1], returns_XRP**2, type='l', ylab = 'XRP Squared Daily Returns', xlab = 'Date')
+
+```
+These plots much more clearly show the volatility of the respective cryptocurrencies, particularly where the volatility was highest. In other words, there are periods of high volitity and low volatility.
+
+---
+
+### (c) Assess the distributional properties of the daily returns of ETH and XRP; i.e. Create histograms and normal QQ-plots for the these two returns. Compute sample statistics (mean, SD, skewness, kurtosis) and test the null hypothesis of normality of the returns by using the JB test statistic. You can do most of this using the functions in the PerformanceAnalytics package. Alternatively, you can use the jarque.bera.test() function from the tseries package for the JB test.
+
+```{r}
+par(mfrow = c(2, 2), mar = c(2, 4.1, 2, 2.1))
+hist(returns_ETH, main = 'ETH Daily Returns', ylab = 'Frequency')
+qqnorm(returns_ETH, main="QQ Plot of ETH Daily Returns")
+qqline(returns_ETH)
+
+hist(returns_XRP, main = 'XRP Daily Returns', ylab = 'Frequency')
+qqnorm(returns_XRP, main="QQ Plot of XRP Daily Returns")
+qqline(returns_XRP)
+```
+```{r paged.print=FALSE}
+stats = table.Stats(returns_ETH)
+jarque.bera.test(returns_ETH)
+```
+
+```{r paged.print=FALSE}
+stats = table.Stats(returns_XRP)
+print(stats[c("Arithmetic Mean", "Stdev", "Skewness", "Kurtosis"), , drop=FALSE])
+jarque.bera.test(returns_XRP)
+```
+Based on the right skews and long tails in the histograms (note the very large kurtosis, far far larger than a value of 3 expected for a normal distribution), as well as the departure from the straight line (indicating normality) in the QQ plot, the distributional properties of the daily returns for ETH and XRP do not remotely similar to a normal/Gaussian distribution.
+
+Unsurprisingly, given these statistical properties of the distributions, the Jarque Bera Test rules out the null hypothesis of the distribution of daily returns for the ETH and XRP cryptocurrencies as being drawn from a normal distribution.
+
+---
+
+### (d) Repeat the exercise in part (c) for the daily absolute and squared returns of ETH and XRP.
+
+#### ETH absolute and squared daily returns
+
+```{r}
+par(mfrow = c(2, 2), mar = c(2, 4.1, 2, 2.1))
+hist(abs(returns_ETH), main = 'ETH Absolute Daily Returns', ylab = 'Frequency')
+qqnorm(abs(returns_ETH), main="QQ Plot: ETH Absolute Daily Returns")
+qqline(abs(returns_ETH))
+
+hist(returns_ETH**2, main = 'ETH Squared Daily Returns', ylab = 'Frequency')
+qqnorm(returns_ETH**2, main="QQ Plot: ETH Squared Daily Returns")
+qqline(returns_ETH**2)
+```
+```{r paged.print=FALSE}
+print("Statistics for ETH Absolute Daily Returns:")
+stats = table.Stats(abs(returns_ETH))
+print(stats[c("Arithmetic Mean", "Stdev", "Skewness", "Kurtosis"), , drop=FALSE])
+jarque.bera.test(abs(returns_ETH))
+```
+
+```{r paged.print=FALSE}
+print("Statistics for ETH Squared Daily Returns:")
+stats = table.Stats(returns_ETH**2)
+print(stats[c("Arithmetic Mean", "Stdev", "Skewness", "Kurtosis"), , drop=FALSE])
+jarque.bera.test(returns_ETH**2)
+```
+
+#### XRP absolute and squared daily returns
+```{r}
+par(mfrow = c(2, 2), mar = c(2, 4.1, 2, 2.1))
+hist(abs(returns_XRP), main = 'XRP Absolute Daily Returns', ylab = 'Frequency')
+qqnorm(abs(returns_XRP), main="QQ Plot: XRP Absolute Daily Returns")
+qqline(abs(returns_XRP))
+
+hist(returns_XRP**2, main = 'XRP Squared Daily Returns', ylab = 'Frequency')
+qqnorm(returns_XRP**2, main="QQ Plot: XRP Squared Daily Returns")
+qqline(returns_XRP**2)
+```
+```{r paged.print=FALSE}
+print("Statistics for XRP Absolute Daily Returns:")
+stats = table.Stats(abs(returns_XRP))
+print(stats[c("Arithmetic Mean", "Stdev", "Skewness", "Kurtosis"), , drop=FALSE])
+jarque.bera.test(abs(returns_XRP))
+```
+
+```{r paged.print=FALSE}
+print("Statistics for XRP Squared Daily Returns:")
+stats = table.Stats(returns_XRP**2)
+print(stats[c("Arithmetic Mean", "Stdev", "Skewness", "Kurtosis"), , drop=FALSE])
+jarque.bera.test(returns_XRP**2)
+```
+
+Skewness and kurtosis are dramatically increased for the absolute and square of the log-returns, with normality (null hypothesis) strongly rejected by the Jarque Bera tests.
+
+### (e) Assess the serial correlation properties of the daily returns of ETH and XRP by assum- ing incorrectly that both returns are ”strong” white noises. Plot the sample ACFs with the approximate 95% confidence intervals and comment on these plots. Also compute the Ljung-Box-Pierce modified Q statistic for the first 10 lags (by assuming that both returns are identically distributed under the null hypothesis without subjecting this assumption to a test at the same time) and use these statistics to test the null hypothesis that the returns are serially uncorrelated. You can use the Box.test() function from the stats package for this. Interpret the test results.
+
+```{r}
+acf(returns_ETH, main='Autocorrelation function: ETH Daily Returns')
+```
+Visually and based on the Box-Ljung test results suggest that the sample ACF are (largely) within the 95% confidence intervals. In other words we do not reject the null hypothesis of no correlation.
+
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(returns_ETH, lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+
+```{r}
+acf(returns_XRP, main='Autocorrelation function: XRP Daily Returns')
+```
+The sample ACF values are somewhat larger, with the lag=2 ACF value excluded by the 95% confidence intervals. This would indicate rejection of the null hypothesis (no correlation). The Box-Ljung test agrees with this for lag>1.
+
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(returns_XRP, lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+
+
+### (f) Repeat the exercise in part (e) for the daily absolute and squared returns of ETH and XRP.
+
+```{r}
+par(mfrow = c(2, 2), mar = c(2, 4.1, 2, 2.1))
+acf(abs(returns_ETH), ylab='ACF: ETH Abs Daily Returns')
+acf(returns_ETH**2, ylab='ACF: ETH Squared Daily Returns')
+
+acf(abs(returns_XRP), ylab='ACF: XRP Abs Daily Returns')
+acf(returns_XRP**2, ylab='ACF: XRP Squared Daily Returns')
+
+```
+
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic: ETH Abs Daily Returns")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(abs(returns_ETH), lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic: ETH Squared Daily Returns")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(returns_ETH**2, lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic: XRP Abs Daily Returns")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(abs(returns_XRP), lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic: XRP Squared Daily Returns")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(returns_ETH**2, lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+
+Visual inspection of the ACFs show clear exclusion by the 95% confidence intervals for several lags, so we can reject the null hypothesis that there is no correlation (across time) of the absolute and squared daily returns for both ETH and XRP. This is also especially clear from the p~0 p-values from the Box-Ljung test.
