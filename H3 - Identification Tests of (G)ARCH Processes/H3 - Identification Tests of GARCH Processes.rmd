@@ -1,0 +1,148 @@
+---
+title: "H3 - Identification Tests of GARCH Processes"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+date: "2023-10-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preliminary Steps
+
+```{r}
+# load libraries
+library(PerformanceAnalytics)
+library(quantmod)
+library(rugarch)
+library(car)
+library(FinTS)
+library(tseries)
+
+options(digits = 4)
+```
+
+```{r}
+# download data
+getSymbols("MSFT", from = "2000-01-03", to = "2015-10-16")
+
+# extract adjusted closing prices
+MSFT = MSFT[, "MSFT.Adjusted", drop = F]
+
+# calculate log-returns
+MSFT.ret = CalculateReturns(MSFT, method = "log")
+colnames(MSFT.ret) = "MSFT"
+
+# remove first NA observation
+MSFT.ret = MSFT.ret[-1,]
+```
+
+Note: a 'return' will refer to the continuously compounded return, namely $r_t=\ln \Big(\frac{P_t}{P_{t-1}}\Big)$.
+
+## (a) Assessing Distributional Properties of Asset Returns
+
+### (i) Time series plots of daily and squared returns for Microsoft.
+```{r}
+plot(MSFT.ret, ylab='MSFT Daily Returns')
+```
+```{r}
+plot(MSFT.ret**2, ylab='MSFT Squared Daily Returns')
+```
+
+The returns appear to be mean reverting since they oscillate around the sample mean, implying that MSFT returns are second order stationary.
+
+We can see especially clearly in the squared returns (a proxy for volatility) above that there is significant variation in the volatility and that the volatility is clustered. In particular, the volatility is highest during/after the "dot-com" bubble at the turn of the millenium, as well as the year after the 2008 global financial crisis.
+
+### (ii) Histograms and QQ plots for daily returns on Microsoft.
+
+```{r}
+par(mfrow = c(2, 2), mar = c(2, 4.1, 2, 2.1))
+hist(MSFT.ret, main = 'MSFT Daily Returns', ylab = 'Frequency')
+qqnorm(MSFT.ret, main="QQ Plot of MSFT Daily Returns")
+qqline(MSFT.ret)
+```
+We can see from the histogram that the distribution of daily returns on MSFT is somewhat skewed. Looking at the QQ plot, we can clearly see large tails outside 2 sigma in the QQ plot, indicating that the returns on Microsoft likely do not come from a Gaussian distribution.
+
+### (iii) Sample statistics
+
+```{r paged.print=FALSE}
+stats = table.Stats(MSFT.ret)
+print(stats[c("Arithmetic Mean", "Stdev", "Skewness", "Kurtosis"), , drop=FALSE])
+jarque.bera.test(MSFT.ret)
+```
+From the skewness (negatively skewed) and kurtosis (much larger than 3), it is again apparent that the returns do not follow a Gaussian distribution. The Jarque-Bera Test, which assumes normality as the null hypothesis, clearly rules out this possibility with a p-value that is ~0 (extremely high chi^2 value).
+
+---
+
+## (b) Assessing Serial Correlation Properties of Asset Returns
+
+### (i) ACF of daily return on Microsft
+
+```{r}
+acf(MSFT.ret, main='Autocorrelation function: MSFT Daily Returns')
+```
+Based on the ACF we can reject strong white noise (i.e. iid noise), but cannot reject weak white noise: at several lags we can see ACF values that are rejected by the default 95% confidence intervals, but which would almost certainly fall within 95% confidence intervals for weak white noise. The confidence interval for weak white noise is larger than strong white noise for small lags (intuitively this is the case since weak white noise occurs where the volatility for a given time is dependent on the volatility of a previous timestep(s)).
+
+### (ii) Ljung-Box Q statistic for daily returns on Microsoft, lags=1-10: test null hypothesis of no serial correlation in the daily returns. 
+
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic: MSFT Daily Returns")
+print("")
+for (i in 1:10) {
+  boxtest = Box.test(MSFT.ret, lag=i, type = "Ljung-Box")
+  cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+}
+```
+Based on the Ljung-Box-Pierce Q test statistic (p=0.003 for a joint lag=0,...,10 test; running joint tests shown above just out of curiosity), we reject the null hypothesis that the data is not autocorrelated. This said, it is worth noting the test construction assumes i.i.d. time series, which isn't usually the case for financial returns!
+
+### (iii) ACF of the squared daily return on Microsft
+
+```{r}
+acf(MSFT.ret**2, main='Autocorrelation function: MSFT Daily Squared Returns')
+```
+The squared returns are very clearly inconsistent with strong white noise, based on both the ACF and the Ljung-Box-Pierce statistics below. Looking at the ACF, it's inconsistent with weak white noise as well - we can see notable ACF values outside the 95% confidence intervals at high lags (where weak white and strong noise confidence intervals are both asymptotically the same). The squared daily returns for Microsoft are clearly autocorrelated, which indicates that there is almost certainly some amount of persistence in the volatility.
+
+### (iv) Repeat (ii) but for the squared daily returns on MSFT. See comment from (iii).
+
+```{r}
+print("Ljung-Box-Pierce modified Q test statistic: MSFT Abs Daily Returns")
+boxtest = Box.test(MSFT.ret**2, lag=i, type = "Ljung-Box")
+cat("lag =", i, ": ", "Chi^2=", boxtest$statistic, "df=", boxtest$parameter, "p-value=", boxtest$p.value, "\n")
+```
+
+As expected, based on the ACF of the squared daily returns, we can reject the null hypothesis of no autocorrelation, based on a lag=1-10 Ljung-Box test, this time performed on squared time returns. This is also consistent with the observed volatility clustering we've seen in previous plots.
+
+---
+
+## (c) Testing for a (G)ARCH Effect in Asset Returns
+
+### (i) Lagrange-Multiplier (LM) test for a (G)ARCH process with lags=5,10.
+
+First, it's worth noting that the LM test assumes as the null hypothesis that there is no (G)ARCH effect, i.e. $p=q=0$. Okay, now let's perform the test:
+
+```{r}
+ArchTest(MSFT.ret, lags=5)
+ArchTest(MSFT.ret, lags=10)
+```
+Based on the negligible p-value, we strongly reject the null hypothesis of there being no (G)ARCH effects. This is consistent with our prior results, eg that in part (iv) of (b), where we saw it is likely that volatility can persist from day to day.
+
+### (ii) Repeat (i) for the squared daily returns on Microsoft.
+
+```{r}
+ArchTest(MSFT.ret**2, lags=5)
+ArchTest(MSFT.ret**2, lags=10)
+```
+In this case, p=0.7, which is quite large, meaning we cannot reject the null hypothesis of there being no (G)ARCH effects. This is consistent with the correlations seen previously in the ACF of the squared daily returns and the results of the Ljung-Box-Pierson tests which ruled out strong white noise for the daily returns, as well as the ACF values which indicated that the squared daily returns are autocorrelated while the daily returns were (probably not) autocorrelated.
+
+## (d) Based on the results obtained from the identification tests conducted in this question, what is a ``good” candidate in terms of a time series model for the daily return on Microsoft over the sample period under consideration?
+
+Based on the volatility clustering, the volatility clearly depends at least on the volatility of previous timesteps. Autocorrelation of returns is small, with much stronger autocorrelation of daily squared returns. A model which could well capture this would be some kind of GARCH model, i.e. a model where the returns, $\epsilon_t = \sigma_t \eta_t$, with 
+$$\sigma_t^2 = \omega + \sum_{i=1}^{q}\alpha_i \epsilon_{t-i}^2 + \sum_{j=1}^{q}\beta_j \sigma_{t-j}^2, \omega>0, \alpha_i \geq 0, \beta_j \geq 0.$$ 
+Since the distribution is negatively skewed, rather than normal, we can use a negatively skewed Student t distribution for $\eta_t$, i.e. $\eta_t \sim$ i.i.d. skew Student's t.
+
+
+
