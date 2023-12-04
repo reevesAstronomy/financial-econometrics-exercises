@@ -1,0 +1,327 @@
+---
+title: "H4 - Q1 - Model Estimation of (G)ARCH Models"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+date: "2023-11-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits=4)
+```
+```{r}
+# Packages
+set.seed(11)
+library(PerformanceAnalytics)
+library(quantmod)
+library(rugarch)
+library(FinTS)
+
+# download data
+getSymbols("MSFT", from = "2000-01-03", to = "2015-10-16")
+
+# extract adjusted closing prices
+MSFT = MSFT[, "MSFT.Adjusted", drop = F]
+
+# calculate log-returns
+MSFT.ret = CalculateReturns(MSFT, method = "log")
+colnames(MSFT.ret) = "MSFT"
+
+# remove first NA observation
+MSFT.ret = MSFT.ret[-1,]
+```
+
+
+## Q1 : Estimating (G)ARCH models using the ruGARCH package
+
+Estimating (G)ARCH models for daily returns on Microsoft, using ARCH(5) and GARCH(1,1) as examples (conditional maximum likelihood approach). An ARCH(5) model and GARCH(1,1) model are contrasted.
+
+
+### (a) Estimation of an ARCH(5) model.
+
+#### (i) Estimated values of $\alpha_1 + \dotsb + \alpha_5$.
+```{r}
+MSFT.arch5.spec = ugarchspec(variance.model = list(garchOrder=c(5,0)), mean.model = list(armaOrder = c(0, 0)))
+MSFT.arch5.fit = ugarchfit(MSFT.arch5.spec, MSFT.ret, solver.control=list(trace = 0))
+
+print(coef(MSFT.arch5.fit))
+print(sum(coef(MSFT.arch5.fit)[-(1:2)]))
+```
+
+Looking at the parameters, we see the mean is effectively zero and that the ARCH(5) model does not find a significant shift when fitting the volatility. The dependence of volatility in this model on the previous five returns is approximately equal ($\alpha_i = 0.14-0.19$) and positive. In other words, the fit model is approximately just a moving average with a multiplicative coefficient.
+
+Additionally, a measure of the persistence is the sum of the ($\alpha$) coefficients, which is 0.7876. There is significant persistence (as we can see in the data after a shock), but since $\sum_i \alpha_i = 0.7876<1$ the process is mean reverting.
+
+#### (ii) Conditional maximum likelihood (CML) vs quasi-maximum likelihood (QML) standard error estimates
+
+```{r}
+show(MSFT.arch5.fit)
+```
+
+```{r}
+show(MSFT.arch5.fit)
+```
+
+MLE standard errors ("Standard error" in the output above) on $\alpha_i$ are $\sim 0.02--0.027$, whereas the QML errors are $\sim 0.046--0.051$ - a factor of $\sim 2$ times larger. Since QML's standard error is notably larger, this indicates that with the assumed model, an i.i.d Normal distribution for $\eta_t$ in $\epsilon_t = \sigma_t \eta_t$ is not an ideal fit. In both cases it is statistically significant that the estimated parameters are larger than zero.
+
+#### (iii) In-sample estimates of the conditional volatility of the daily return, $\hat{\sigma}_t$, and comparision with its absolute return, $| X_t |$.
+
+```{r, fig.show='hide'}
+sigma_hat = sigma(MSFT.arch5.fit)
+p<-plot(abs(MSFT.ret), ylab='Conditional volatility of daily return', col='red', main='ARCH(5) vs ABS(returns)')
+lines(sigma_hat, col='blue')
+```
+The volatility spike locations are at the same locations as spikes in the absolute return, but the magnitude is clearly quite different (unsurprisingly, these are of course different quantities). The absolute value of the returns (red) also regularly drops to zero, whereas the conditional volatility (blue) never drops below $\sim 0.15$.
+
+#### (iv) Estimate of the unconditional volatility (estimated standard deviation) of the return.
+
+```{r}
+# simple sample standard deviation
+print(StdDev(MSFT.ret))
+# unconditional variance: omega/(alpha1 + beta1)
+print(paste("Unconditional volatility:", sqrt(uncvariance(MSFT.arch5.fit))))
+```
+
+The unconditional volatility, $\bar{\sigma} = \sqrt{\omega/(1-\sum_{i}\alpha_i)}$ is fairly close but somewhat larger than the sample standard deviation of the MSFT daily returns, indicating the ARCH(5) model is over predicting the volatility by only $\sim 20\%$ overall.
+
+### (b) Estimation of a GARCH(1,1) model.
+
+#### (i) Estimated params from the fit
+```{r}
+MSFT.garch11.spec = ugarchspec(variance.model = list(garchOrder=c(1,1)), mean.model = list(armaOrder = c(0, 0)))
+MSFT.garch11.fit = ugarchfit(MSFT.garch11.spec, MSFT.ret)
+print(coef(MSFT.garch11.fit))
+
+# persistence: alpha1 + beta1
+alpha_beta_sum <- coef(MSFT.garch11.fit)["alpha1"] + coef(MSFT.garch11.fit)["beta1"]
+print(paste("Persistence: alpha + beta =", alpha_beta_sum))
+
+# half-life:
+print(paste("Half life", halflife(MSFT.garch11.fit), "days"))
+```
+
+We see $\alpha + \beta = 0.9858 < 1$, which indicates that the fitted solution is second order stationary and therefore will also be both causal and unique. Such a solution does not explode to infinity, but given its closeness to one, there is high persistence in volatility. Such a model finds that volatility effects have a half-life of $\sim 49$ days. As expected for a stock market return, we see a small $\alpha$ and large $\beta$ (close to 1).
+
+#### (ii) 
+```{r}
+sigma_hat_garch = sigma(MSFT.garch11.fit)
+p<-plot(abs(MSFT.ret), ylab='Conditional volatility of daily return', col='red', main='GARCH(1,1) vs ABS(returns)')
+lines(sigma_hat_garch, col='blue')
+```
+```{r}
+sigma_hat_garch = sigma(MSFT.garch11.fit)
+p<-plot(sigma_hat, ylab='Conditional volatility of daily return', col='red', main='ARCH(5) vs GARCH(1,1)')
+lines(sigma_hat_garch, col='blue')
+```
+Here we can see the differences between the GARCH(1,1) and ARCH(5) fitted models. Although the general larger scale trends in the conditional volatility follow a similar pattern, it's clear that the GARCH(1,1) model is much less erratic (less rapid variability in the fit volatility) on short timescales.
+
+#### (iii) Estimate of the unconditional volatility (estimated standard deviation) of the return.
+
+```{r}
+# simple sample standard deviation
+print(StdDev(MSFT.ret))
+# unconditional variance: omega/(alpha1 + beta1)
+print(paste("Unconditional volatility:", sqrt(uncvariance(MSFT.garch11.fit))))
+```
+
+The unconditional volatility, $\bar{\sigma} = \sqrt{\omega/(1-\alpha-\beta)}$, is the same as for the sample standard deviation for the MSFT daily returns, indicating a good fit to the volatility seen in the data.
+
+## Q2 : Validating (G)ARCH models
+
+### (a) Fitted ARCH(5) Model
+
+#### (i) Weighted Ljung-Box Test
+Is the standardized residuals of the fitted model $\hat{\eta}_t \equiv \hat{\epsilon}_t / \hat{\sigma}_t$, serially correlated?
+
+```{r}
+# residuals: e(t)
+plot.ts(residuals(MSFT.arch5.fit), ylab="e(t)", col="blue", main="residuals")
+abline(h=0)
+```
+
+```{r}
+print("Test for no serial correlation in standardized residuals")
+
+# standardized residuals
+epsilon_t = residuals(MSFT.arch5.fit) # residuals: epsilon(t)
+sigma_t = sigma(MSFT.arch5.fit) # sigma(t) = conditional volatility
+eta_t = epsilon_t/sigma_t
+Box.test(eta_t, type="Ljung-Box", lag = 1)
+print(c(mean(eta_t),StdDev(eta_t)))
+Box.test(eta_t, type="Ljung-Box", lag = 6)
+print(c(mean(eta_t),StdDev(eta_t)))
+Box.test(eta_t, type="Ljung-Box", lag = 8)
+print(c(mean(eta_t),StdDev(eta_t)))
+Box.test(eta_t, type="Ljung-Box", lag = 10)
+print(c(mean(eta_t),StdDev(eta_t)))
+```
+Given the large p-values, the standardized residuals are consistent with the null (no serial correlation) left in the residuals of the fitted model.
+
+#### (ii) Are the squared standardized residuals serially correlated?
+
+```{r}
+print("Test for no serial correlation in squared standardized residuals")
+Box.test(eta_t^2, type="Ljung-Box", lag = 1)
+Box.test(eta_t^2, type="Ljung-Box", lag = 6)
+Box.test(eta_t^2, type="Ljung-Box", lag = 8)
+Box.test(eta_t^2, type="Ljung-Box", lag = 10)
+```
+The large p-values suggest no evidence of a serial correlation in the squared standardized residuals.
+
+#### (iii) Is there any ARCH effect left in the residuals after it has been fitted to an ARCH(5) model?
+
+```{r}
+ArchTest(eta_t)
+```
+Based on the ARCH LM test there is no evidence of an ARCH effect remaining in the model residuals.
+
+
+### (b) Fitted GARCH(1,1) Model
+
+#### (i) Weighted Ljung-Box Test
+Is the standardized residuals of the fitted model $\hat{\eta}_t \equiv \hat{\epsilon}_t / \hat{\sigma}_t$, serially correlated?
+
+```{r}
+# residuals: e(t)
+p<-plot.ts(residuals(MSFT.garch11.fit), ylab="e(t)", col="red", main="residuals")
+lines(residuals(MSFT.arch5.fit), col='blue')
+abline(h=0)
+```
+
+```{r}
+print("Test for no serial correlation in standardized residuals")
+
+# standardized residuals
+epsilon_t = residuals(MSFT.garch11.fit) # residuals: epsilon(t)
+sigma_t = sigma(MSFT.garch11.fit) # sigma(t) = conditional volatility
+eta_t = epsilon_t/sigma_t
+Box.test(eta_t, type="Ljung-Box", lag = 1)
+print(c(mean(eta_t),StdDev(eta_t)))
+Box.test(eta_t, type="Ljung-Box", lag = 6)
+print(c(mean(eta_t),StdDev(eta_t)))
+Box.test(eta_t, type="Ljung-Box", lag = 8)
+print(c(mean(eta_t),StdDev(eta_t)))
+Box.test(eta_t, type="Ljung-Box", lag = 10)
+print(c(mean(eta_t),StdDev(eta_t)))
+```
+
+The above p-values for various lags suggest no evidence for serial correlation in the standardized residuals.
+
+#### (ii) Are the squared standardized residuals serially correlated?
+
+```{r}
+print("Test for no serial correlation in squared standardized residuals")
+Box.test(eta_t^2, type="Ljung-Box", lag = 1)
+Box.test(eta_t^2, type="Ljung-Box", lag = 6)
+Box.test(eta_t^2, type="Ljung-Box", lag = 8)
+Box.test(eta_t^2, type="Ljung-Box", lag = 10)
+```
+The above p-values for various lags suggest no evidence for serial correlation in the squared standardized residuals.
+
+
+#### (iii) Is there any ARCH effect left in the residuals after it has been fitted to an GARCH(1,1) model?
+
+```{r}
+ArchTest(eta_t)
+```
+Based on the ARCH LM test, there is no ARCH effect in the standardized residuals from the GARCH(1,1) model.
+
+### (c) Summary remarks
+
+```{r}
+# extract information criteria for all models
+print("ARCH(5) model:")
+infocriteria(MSFT.arch5.fit)
+print("GARCH(1,1) model:")
+infocriteria(MSFT.garch11.fit)
+```
+The analysis in the previous parts indicates a GARCH(1,1) model should be given preference. As well, if we consider the information criterion given above, GARCH(1,1) is clearly lower-valued and is therefore a better fit to the data. Part of this improvement in the information criteria, lending additional preference to GARCH(1,1) is that it has only four fittable parameters, instead of 7.
+
+## Q3 : Model prediction of (G)ARCH Models
+
+### (a) Fitted ARCH(5) Model
+
+Compute h-step ahead volatility forecasts of the daily returns on Microsoft for h=1,...,100 days.
+
+Plot these along with the estimate of unconditional volatility of the daily return on Microsoft. From the plot, do the forecasts appear to converge fast to the unconditional volatility of the returns? Explain.
+
+```{r}
+# Set larger bottom and top margins (the numbers are lines of text)
+par(mfrow=c(1,1), mar=c(1, 4.1, 4, 2.1))
+
+# Your plotting code
+MSFT.arch5.fcst = ugarchforecast(MSFT.arch5.fit, n.ahead=100)
+par(mfrow=c(1,1))
+plot(MSFT.arch5.fcst, which=1)
+```
+```{r}
+# Set larger bottom and top margins (the numbers are lines of text)
+par(mfrow=c(1,1), mar=c(1, 4.1, 4, 2.1))
+
+# Your plotting code
+MSFT.arch5.fcst = ugarchforecast(MSFT.arch5.fit, n.ahead=100)
+par(mfrow=c(1,1))
+plot(MSFT.arch5.fcst, which=3)
+```
+
+The forecast converges within 2-3 months to the conditional volatility of the returns for the ARCH(5) model (0.0236).
+
+### (b) Predictions of a fitted GARCH(1,1) Model
+
+```{r}
+# Set larger bottom and top margins (the numbers are lines of text)
+par(mfrow=c(1,1), mar=c(1, 4.1, 4, 2.1))
+
+# Your plotting code
+MSFT.garch11.fcst = ugarchforecast(MSFT.garch11.fit, n.ahead=100)
+
+par(mfrow=c(2,1))
+plot(MSFT.garch11.fcst, which=1)
+plot(MSFT.garch11.fcst, which=3)
+
+# plot.window(xlim=c(as.Date("2014-01-01"), as.Date("2016-03-28")))
+```
+The forecast in this case only slowly converges (over many months) to the conditional volatility of the returns, which in this case is equal to the unconditional volatility of the returns ($0.020$). $\alpha+\beta$ being close to one explains why the volatility in the GARCH(1,1) model takes so long to converge (high persistence).
+
+## Question 4. Rolling Estimation, Rolling Forecasts, and VaR Measures from Fitted GARCH(1,1) Model
+
+### (a) Write formulas for 1-day conditional Value at Risk (VaR) and h-day conditional VaR for the daily return on MSFT.
+
+### (b) Compute a thousand 1-period ahead rolling forecasts of the normal GARCH(1,1) model for Microsoft, refitting the GARCH(1,1) model every 20 observations (this is a monthly rolling window).
+
+In ugarchroll(), n:ahead=1 means compute 1-step ahead fore- casts, forecast:length=1000 means set aside 1000 observations for the forecast, refit:every = 20 means you will refit the model every 20 days in the interest of the calculation speed, and refit:window = moving is the rolling forecast. Make sure that you calculate 1% VaR when you perform the rolling estimation.
+
+```{r}
+MSFT.garch11.roll = ugarchroll(MSFT.garch11.spec, MSFT.ret, n.ahead=1, forecast.length = 1000, 
+                                refit.every=20, refit.window="moving")
+# Coef plot`
+par(mfrow=c(1,1), mar=c(1, 4.1, 4, 2.1))
+plot(MSFT.garch11.roll, which=5)
+```
+
+```{r}
+# VaR plot
+plot(MSFT.garch11.roll, which=4)
+```
+```{r}
+report(MSFT.garch11.roll, type="VaR")
+```
+
+The above plot and results suggest that the risk captured in the rolling 1% estimates are underpredicted by our fit GARCH(1,1) model.
+
+### (c) What is the Mean Squared Error and Mean Absolute Errors of the forecast?
+```{r}
+report(MSFT.garch11.roll, type="fpm")
+```
+The values are given in the above table as MSE and MAE, respectively. Since they are very small it indicates a good fit.
+
+### (d) Plot the forecast of conditional volatility and discuss the result.
+
+```{r}
+par(mfrow=c(1,1), mar=c(1, 4.1, 4, 2.1))
+plot(MSFT.garch11.roll, which=2)
+```
+
