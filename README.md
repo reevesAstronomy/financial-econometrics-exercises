@@ -4,3 +4,4 @@ Exercises include:
 - H1: Autocorrelation function
 - H2: Cryptocurrency (ETH and XRP) exploratory data analysis
 - H3: Identification tests of (G)ARCH processes
+- H4: Part I - Normal ARCH and GARCH Models - Estimation, Validation, Prediction, Rolling Forecasts and VaR
